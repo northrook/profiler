@@ -1,0 +1,30 @@
+{
+  "name": "northrook/profiler",
+  "description": "A PHP profiler using Symfony\\Stopwatch.",
+  "type": "library",
+  "license": "BSD-3-Clause",
+  "autoload": {
+    "psr-4": {
+      "Core\\": "src"
+    }
+  },
+  "authors": [
+    {
+      "name": "Martin",
+      "email": "mn@northrook.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "require": {
+    "php": ">=8.3",
+    "northrook/core": "dev-main",
+    "symfony/stopwatch": "@stable"
+  },
+  "require-dev": {
+    "northrook/dev": "dev-main"
+  },
+  "scripts": {
+    "phpstan": "vendor/bin/phpstan analyse"
+  }
+}
