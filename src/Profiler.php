@@ -8,12 +8,13 @@ use Core\Interface\ProfilerInterface;
 use Symfony\Component\Stopwatch\{
     Stopwatch, StopwatchEvent
 };
-use function Support\slug;
-use Throwable, InvalidArgumentException;
+use Throwable;
 
 final class Profiler implements ProfilerInterface
 {
     private static bool $disabled;
+
+    protected readonly ?Stopwatch $stopwatch;
 
     /** @var bool[][] */
     private array $events = [
@@ -23,34 +24,22 @@ final class Profiler implements ProfilerInterface
     /** @var null|non-empty-string */
     protected ?string $category = null;
 
-    public readonly Stopwatch $stopwatch;
-
     /**
-     * If no `$stopwatch` is provided, one will be initiated.
-     *
-     * @param null|Stopwatch $stopwatch
-     * @param null|string    $category
-     * @param bool           $enabled
+     * @param null|Stopwatch|true $stopwatch
+     * @param null|string         $category
      */
     public function __construct(
-        ?Stopwatch $stopwatch = null,
-        ?string    $category = null,
-        bool       $enabled = true,
+        null|true|Stopwatch $stopwatch = null,
+        ?string             $category = null,
     ) {
-        self::$disabled ??= $enabled === false;
+        self::$disabled ??= $stopwatch === null;
 
-        if ( self::$disabled && $stopwatch === null ) {
-            return;
+        if ( $stopwatch === true ) {
+            $stopwatch = new Stopwatch( true );
         }
 
-        $this->stopwatch = $stopwatch ?? new Stopwatch( true );
-        $this->setCategory( $category );
-    }
-
-    public function setCategory( ?string $category ) : self
-    {
-        $this->category = $this->category( $category );
-        return $this;
+        $this->stopwatch = $stopwatch;
+        $this->setCategory( $category ?? 'Profiler' );
     }
 
     public function __invoke(
@@ -60,25 +49,10 @@ final class Profiler implements ProfilerInterface
         return $this->event( $name, $category );
     }
 
-    public function event(
-        string  $name,
-        ?string $category = null,
-    ) : ?StopwatchEvent {
-        if ( self::$disabled ) {
-            return null;
-        }
-
-        $category = $this->category( $category );
-        $name     = $this->name( $name, $category );
-
-        if ( $category ) {
-            $this->events[$category][$name] ??= true;
-        }
-        else {
-            $this->events['_events'][$name] ??= true;
-        }
-
-        return $this->stopwatch->start( $name, $category );
+    public function setCategory( ?string $category ) : self
+    {
+        $this->category = $this->category( $category );
+        return $this;
     }
 
     public function start(
@@ -97,14 +71,16 @@ final class Profiler implements ProfilerInterface
         ?string $name = null,
         ?string $category = null,
     ) : void {
-        if ( self::$disabled ) {
+        if ( $this::$disabled || $this->stopwatch === null ) {
             return;
         }
 
         $category = $this->category( $category );
 
         if ( $name ) {
-            $this->stopwatch->getEvent( $this->name( $name, $category ) )->ensureStopped();
+            $name = $this->name( $name, $category );
+            $this->stopwatch->getEvent( $name )->ensureStopped();
+            $this->events[$category ?? '_events'][$name] = false;
         }
 
         if ( $category ) {
@@ -125,6 +101,27 @@ final class Profiler implements ProfilerInterface
         }
     }
 
+    public function event(
+        string  $name,
+        ?string $category = null,
+    ) : ?StopwatchEvent {
+        if ( $this::$disabled || $this->stopwatch === null ) {
+            return null;
+        }
+
+        $category = $this->category( $category );
+        $name     = $this->name( $name, $category );
+
+        if ( $category ) {
+            $this->events[$category][$name] ??= true;
+        }
+        else {
+            $this->events['_events'][$name] ??= true;
+        }
+
+        return $this->stopwatch->start( $name, $category ? \ucfirst( $category ) : null );
+    }
+
     /**
      * @param string      $string
      * @param null|string $category
@@ -143,10 +140,11 @@ final class Profiler implements ProfilerInterface
             return $string;
         }
 
-        return slug( "{$category}.{$string}", '.' )
-                ?: throw new InvalidArgumentException(
-                    'Event name must not be empty.',
-                );
+        if ( \str_starts_with( $string, "{$category}." ) ) {
+            return $string;
+        }
+
+        return "{$category}.".\trim( $string, " \n\r\t\v\0." );
     }
 
     /**
@@ -162,12 +160,16 @@ final class Profiler implements ProfilerInterface
 
         $namespaced = \explode( '\\', $string );
 
-        return \end( $namespaced ) ?: null;
+        if ( $string = \end( $namespaced ) ) {
+            return \strtolower( $string );
+        }
+
+        return null;
     }
 
     public static function isEnabled() : bool
     {
-        return ! self::$disabled;
+        return isset( self::$disabled ) && self::$disabled === false;
     }
 
     public static function enable() : void
