@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Core;
 
+use Core\Interface\ProfilerInterface;
 use Symfony\Component\Stopwatch\{
     Stopwatch, StopwatchEvent
 };
 use function Support\slug;
 use Throwable, InvalidArgumentException;
 
-final class Profiler
+final class Profiler implements ProfilerInterface
 {
     private static bool $disabled = false;
 
@@ -35,7 +36,13 @@ final class Profiler
         ?string    $category = null,
     ) {
         $this->stopwatch = $stopwatch ?? new Stopwatch( true );
-        $this->category  = $this->category( $category );
+        $this->setCategory( $category );
+    }
+
+    public function setCategory( ?string $category ) : self
+    {
+        $this->category = $this->category( $category );
+        return $this;
     }
 
     public function __invoke(
@@ -71,6 +78,11 @@ final class Profiler
         ?string $category = null,
     ) : void {
         $this->event( $name, $category )?->start();
+    }
+
+    public function lap( string $name, ?string $category = null ) : void
+    {
+        $this->event( $name, $category )?->lap();
     }
 
     public function stop(
