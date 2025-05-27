@@ -13,7 +13,7 @@ use Throwable, InvalidArgumentException;
 
 final class Profiler implements ProfilerInterface
 {
-    private static bool $disabled = false;
+    private static bool $disabled;
 
     /** @var bool[][] */
     private array $events = [
@@ -30,11 +30,19 @@ final class Profiler implements ProfilerInterface
      *
      * @param null|Stopwatch $stopwatch
      * @param null|string    $category
+     * @param bool           $enabled
      */
     public function __construct(
         ?Stopwatch $stopwatch = null,
         ?string    $category = null,
+        bool       $enabled = true,
     ) {
+        self::$disabled ??= $enabled === false;
+
+        if ( self::$disabled && $stopwatch === null ) {
+            return;
+        }
+
         $this->stopwatch = $stopwatch ?? new Stopwatch( true );
         $this->setCategory( $category );
     }
