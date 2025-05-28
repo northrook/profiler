@@ -25,20 +25,20 @@ final class Profiler implements ProfilerInterface
     protected ?string $category = null;
 
     /**
-     * @param null|Stopwatch|true $stopwatch
+     * @param null|bool|Stopwatch $stopwatch
      * @param null|string         $category
      */
     public function __construct(
-        null|true|Stopwatch $stopwatch = null,
+        null|bool|Stopwatch $stopwatch = null,
         ?string             $category = null,
     ) {
-        self::$disabled ??= $stopwatch === null;
+        self::$disabled ??= $stopwatch === false;
 
         if ( $stopwatch === true ) {
             $stopwatch = new Stopwatch( true );
         }
 
-        $this->stopwatch = $stopwatch;
+        $this->stopwatch = $stopwatch ?: null;
         $this->setCategory( $category ?? 'Profiler' );
     }
 
