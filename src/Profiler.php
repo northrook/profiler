@@ -42,6 +42,7 @@ final class Profiler implements ProfilerInterface
         $this->setCategory( $category ?? 'Profiler' );
     }
 
+
     public function __invoke(
         string  $name,
         ?string $category = null,
@@ -120,6 +121,11 @@ final class Profiler implements ProfilerInterface
         }
 
         return $this->stopwatch->start( $name, $category ? \ucfirst( $category ) : null );
+    }
+
+    public function getStopwatch() : ?Stopwatch
+    {
+        return $this->stopwatch;
     }
 
     /**
