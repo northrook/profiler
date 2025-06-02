@@ -89,7 +89,7 @@ final class Profiler implements ProfilerInterface
      *
      * @param null|non-empty-string $category
      *
-     * @return static
+     * @return self
      */
     public function setCategory( ?string $category ) : self
     {
