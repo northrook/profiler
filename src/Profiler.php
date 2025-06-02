@@ -45,8 +45,13 @@ final class Profiler implements ProfilerInterface
     }
 
     /**
-     * @param non-empty-string      $name
-     * @param null|non-empty-string $category
+     * Retrieve or create a {@see StopwatchEvent} by name and optional category.
+     *
+     * - The event is started on instantiation.
+     * - `null` if the profiler is `disabled`.
+     *
+     * @param non-empty-string      $name     the name of the event to retrieve
+     * @param null|non-empty-string $category an optional category for the event
      *
      * @return null|StopwatchEvent
      */
@@ -58,19 +63,20 @@ final class Profiler implements ProfilerInterface
     }
 
     /**
-     * @param null|bool|Profiler|Stopwatch $profiler
-     * @param null|non-empty-string        $category
+     * Creates {@see Profiler} instance, returning a {@see ProfilerInterface}.
      *
-     * @return null|self
+     * @param null|bool|ProfilerInterface|Stopwatch $profiler
+     * @param null|non-empty-string                 $category [Profiler]
+     *
+     * @return null|ProfilerInterface
      */
     public static function from(
-        null|bool|Stopwatch|self $profiler,
-        ?string                  $category = null,
-    ) : ?self {
+        null|bool|Stopwatch|ProfilerInterface $profiler,
+        ?string                               $category = null,
+    ) : ?ProfilerInterface {
         if ( self::$disabled || $profiler === null ) {
             return null;
         }
-
         if ( $profiler instanceof Stopwatch || \is_bool( $profiler ) ) {
             return new self( $profiler, $category );
         }
@@ -79,9 +85,11 @@ final class Profiler implements ProfilerInterface
     }
 
     /**
+     * Sets the category for the current instance.
+     *
      * @param null|non-empty-string $category
      *
-     * @return $this
+     * @return static
      */
     public function setCategory( ?string $category ) : self
     {
@@ -92,6 +100,8 @@ final class Profiler implements ProfilerInterface
     /**
      * Starts an event with the given name and optional category.
      *
+     *  - The event is started on instantiation.
+     *
      * @param non-empty-string      $name     the name of the event to start
      * @param null|non-empty-string $category an optional category for the event
      *
@@ -101,7 +111,7 @@ final class Profiler implements ProfilerInterface
         string  $name,
         ?string $category = null,
     ) : void {
-        $this->event( $name, $category )?->start();
+        $this->event( $name, $category );
     }
 
     /**
