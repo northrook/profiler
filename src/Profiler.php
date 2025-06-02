@@ -63,25 +63,20 @@ final class Profiler implements ProfilerInterface
     }
 
     /**
-     * Creates {@see Profiler} instance, returning a {@see ProfilerInterface}.
+     * Creates a {@see Profiler} instance, returning a {@see ProfilerInterface}.
      *
      * @param null|bool|ProfilerInterface|Stopwatch $profiler
      * @param null|non-empty-string                 $category [Profiler]
      *
-     * @return null|ProfilerInterface
+     * @return ProfilerInterface
      */
     public static function from(
         null|bool|Stopwatch|ProfilerInterface $profiler,
         ?string                               $category = null,
-    ) : ?ProfilerInterface {
-        if ( self::$disabled || $profiler === null ) {
-            return null;
-        }
-        if ( $profiler instanceof Stopwatch || \is_bool( $profiler ) ) {
-            return new self( $profiler, $category );
-        }
-
-        return $profiler->setCategory( $category ?? 'Profiler' );
+    ) : ProfilerInterface {
+        return $profiler instanceof ProfilerInterface
+                ? $profiler->setCategory( $category )
+                : new Profiler( $profiler, $category );
     }
 
     /**
