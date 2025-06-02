@@ -58,20 +58,20 @@ final class Profiler implements ProfilerInterface
     }
 
     /**
-     * @param null|Profiler|Stopwatch $profiler
-     * @param null|non-empty-string   $category
+     * @param null|bool|Profiler|Stopwatch $profiler
+     * @param null|non-empty-string        $category
      *
      * @return null|self
      */
     public static function from(
-        null|Stopwatch|self $profiler,
-        ?string             $category = null,
+        null|bool|Stopwatch|self $profiler,
+        ?string                  $category = null,
     ) : ?self {
         if ( self::$disabled || $profiler === null ) {
             return null;
         }
 
-        if ( $profiler instanceof Stopwatch ) {
+        if ( $profiler instanceof Stopwatch || \is_bool( $profiler ) ) {
             return new self( $profiler, $category );
         }
 
