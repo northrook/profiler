@@ -6,7 +6,8 @@ namespace Core;
 
 use Core\Interface\ProfilerInterface;
 use Symfony\Component\Stopwatch\{
-    Stopwatch, StopwatchEvent
+    Stopwatch,
+    StopwatchEvent
 };
 use Throwable;
 
