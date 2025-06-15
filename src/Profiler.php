@@ -4,49 +4,49 @@ declare(strict_types=1);
 
 namespace Core;
 
-use Core\Interface\ProfilerInterface;
-use Symfony\Component\Stopwatch\{
-    Stopwatch,
-    StopwatchEvent
-};
-use Throwable;
+use Core\Contracts\Profiler\ProfilerEvent;
+use Core\Contracts\ProfilerInterface;
+use Core\Profiler\Event;
 
 final class Profiler implements ProfilerInterface
 {
-    private static bool $disabled;
+    public const string DEFAULT_CATEGORY = '_events';
 
-    protected readonly ?Stopwatch $stopwatch;
+    protected readonly float $createdAt;
 
-    /** @var bool[][] */
-    private array $events = [
-        '_events' => [],
+    protected readonly float $closedAt;
+
+    /** @var array<string, array<string, Event>> */
+    protected array $events = [
+        Profiler::DEFAULT_CATEGORY => [],
     ];
 
     /** @var null|non-empty-string */
     protected ?string $category = null;
 
     /**
-     * @param null|bool|Stopwatch   $stopwatch
-     * @param null|non-empty-string $category  [Profiler]
+     * @param null|non-empty-string $category
+     * @param bool                  $disabled
+     * @param bool                  $getMemoryUsage
      *
      * @return void
      */
     public function __construct(
-        null|bool|Stopwatch $stopwatch = null,
-        ?string             $category = null,
+        ?string        $category = null,
+        protected bool $disabled = false,
+        protected bool $getMemoryUsage = false,
     ) {
-        self::$disabled ??= $stopwatch === false;
+        $this->createdAt = \microtime( true );
+        $this->setCategory( $category );
+    }
 
-        if ( $stopwatch === true ) {
-            $stopwatch = new Stopwatch( true );
-        }
-
-        $this->stopwatch = $stopwatch ?: null;
-        $this->setCategory( $category ?? 'Profiler' );
+    public function __destruct()
+    {
+        $this->close();
     }
 
     /**
-     * Retrieve or create a {@see StopwatchEvent} by name and optional category.
+     * Retrieve or create a {@see ProfilerEvent} by name and optional category.
      *
      * - The event is started on instantiation.
      * - `null` if the profiler is `disabled`.
@@ -54,73 +54,42 @@ final class Profiler implements ProfilerInterface
      * @param non-empty-string      $name     the name of the event to retrieve
      * @param null|non-empty-string $category an optional category for the event
      *
-     * @return null|StopwatchEvent
+     * @return null|ProfilerEvent
      */
     public function __invoke(
         string  $name,
         ?string $category = null,
-    ) : ?StopwatchEvent {
+    ) : ?ProfilerEvent {
         return $this->event( $name, $category );
     }
 
     /**
-     * Creates a {@see Profiler} instance, returning a {@see ProfilerInterface}.
-     *
-     * @param null|bool|ProfilerInterface|Stopwatch $profiler
-     * @param null|non-empty-string                 $category [Profiler]
-     *
-     * @return ProfilerInterface
+     * @inheritDoc
      */
-    public static function from(
-        null|bool|Stopwatch|ProfilerInterface $profiler,
-        ?string                               $category = null,
-    ) : ProfilerInterface {
-        return $profiler instanceof ProfilerInterface
-                ? $profiler->setCategory( $category )
-                : new Profiler( $profiler, $category );
+    public function event(
+        string  $name,
+        ?string $category = null,
+    ) : ?ProfilerEvent {
+        if ( $this->disabled ) {
+            return null;
+        }
+
+        // ?? $category === [null] use callstack to retrieve origin?
+
+        $name     = $this->name( $name );
+        $category = $this->category( $category );
+
+        return $this->events[$category][$name] ??= new Event( $name, $category, $this->getMemoryUsage );
     }
 
     /**
-     * Sets the category for the current instance.
-     *
-     * @param null|non-empty-string $category
-     *
-     * @return self
-     */
-    public function setCategory( ?string $category ) : self
-    {
-        $this->category = $this->category( $category );
-        return $this;
-    }
-
-    /**
-     * Starts an event with the given name and optional category.
-     *
-     *  - The event is started on instantiation.
-     *
-     * @param non-empty-string      $name     the name of the event to start
-     * @param null|non-empty-string $category an optional category for the event
-     *
-     * @return void
+     * @inheritDoc
      */
     public function start(
         string  $name,
         ?string $category = null,
-    ) : void {
-        $this->event( $name, $category );
-    }
-
-    /**
-     * Records a lap event with the specified name and optional category.
-     *
-     * @param non-empty-string      $name     name of the event to record the lap for
-     * @param null|non-empty-string $category optional category name to associate with the event
-     *
-     * @return void
-     */
-    public function lap( string $name, ?string $category = null ) : void
-    {
-        $this->event( $name, $category )?->lap();
+    ) : ?ProfilerEvent {
+        return $this->event( $name, $category )?->start();
     }
 
     /**
@@ -135,123 +104,21 @@ final class Profiler implements ProfilerInterface
         ?string $name = null,
         ?string $category = null,
     ) : void {
-        if ( $this::$disabled || $this->stopwatch === null ) {
-            return;
+        if ( $name && $category ) {
+            $this->event( $name, $category )?->stop();
         }
-
-        $category = $this->category( $category );
-
-        if ( $name ) {
-            $name = $this->name( $name, $category );
-            $this->stopwatch->getEvent( $name )->ensureStopped();
-            $this->events[$category ?? '_events'][$name] = false;
-        }
-
-        if ( $category ) {
-            foreach ( $this->events[$category] ?? [] as $event => $dummy ) {
-                if ( ! $this->events[$category][$event] ) {
-                    continue;
-                }
-
-                $this->events[$category][$event] = false;
-
-                try {
-                    $this->stopwatch->getEvent( $event )->ensureStopped();
-                }
-                catch ( Throwable ) {
-                    continue;
+        elseif ( $name ) {
+            foreach ( $this->events as $events ) {
+                if ( \array_key_exists( $name, $events ) ) {
+                    $events[$name]->stop();
                 }
             }
         }
-    }
-
-    /**
-     * Starts an event with the specified name and optional category and returns it.
-     *
-     * @param non-empty-string      $name     name of the event to start
-     * @param null|non-empty-string $category optional category name to associate with the event
-     *
-     * @return null|StopwatchEvent
-     */
-    public function event(
-        string  $name,
-        ?string $category = null,
-    ) : ?StopwatchEvent {
-        if ( $this::$disabled || $this->stopwatch === null ) {
-            return null;
+        elseif ( $category ) {
+            foreach ( $this->events[$this->category( $category )] ?? [] as $event ) {
+                $event->stop();
+            }
         }
-
-        $category = $this->category( $category );
-        $name     = $this->name( $name, $category );
-
-        if ( $category ) {
-            $this->events[$category][$name] ??= true;
-        }
-        else {
-            $this->events['_events'][$name] ??= true;
-        }
-
-        return $this->stopwatch->start( $name, $category ? \ucfirst( $category ) : null );
-    }
-
-    /**
-     * Retrieves the stopwatch instance.
-     *
-     * @return null|Stopwatch
-     */
-    public function getStopwatch() : ?Stopwatch
-    {
-        return $this->stopwatch;
-    }
-
-    /**
-     * Formats and validates the provided event name, associating it with the optional category if specified.
-     *
-     * @param non-empty-string      $string   name of the event to be formatted and validated
-     * @param null|non-empty-string $category optional category to associate with the event name
-     *
-     * @return non-empty-string `categorized.event-name`
-     */
-    private function name( string $string, ?string $category ) : string
-    {
-        // @phpstan-ignore-next-line | Assertions assert
-        \assert( \strlen( $string ) > 0, 'Event name must not be empty.' );
-
-        if ( \class_exists( $string, false ) ) {
-            return $string;
-        }
-
-        if ( ! $category ) {
-            return $string;
-        }
-
-        if ( \str_starts_with( $string, "{$category}." ) ) {
-            return $string;
-        }
-
-        return "{$category}.".\trim( $string, " \n\r\t\v\0." );
-    }
-
-    /**
-     * Handles the category string transformation or returns the current category if no string is provided.
-     *
-     * @param null|non-empty-string $string
-     *
-     * @return null|non-empty-string
-     */
-    private function category( ?string $string ) : ?string
-    {
-        if ( ! $string ) {
-            return $this->category;
-        }
-
-        $namespaced = \explode( '\\', $string );
-
-        if ( $string = \end( $namespaced ) ) {
-            return \strtolower( $string );
-        }
-
-        return null;
     }
 
     /**
@@ -259,19 +126,21 @@ final class Profiler implements ProfilerInterface
      *
      * @return bool true if enabled, false otherwise
      */
-    public static function isEnabled() : bool
+    public function isEnabled() : bool
     {
-        return isset( self::$disabled ) && self::$disabled === false;
+        return $this->disabled === false;
     }
 
     /**
      * Enables the {@see Profiler} globally.
      *
-     * @return void
+     * @return $this
      */
-    public static function enable() : void
+    public function enable() : static
     {
-        self::$disabled = false;
+        $this->disabled = false;
+
+        return $this;
     }
 
     /**
@@ -279,8 +148,75 @@ final class Profiler implements ProfilerInterface
      *
      * @return void
      */
-    public static function disable() : void
+    public function disable() : void
     {
-        self::$disabled = true;
+        $this->disabled = true;
+    }
+
+    /**
+     * Sets the category for the current instance.
+     *
+     * @param null|non-empty-string $category
+     *
+     * @return self
+     */
+    public function setCategory( ?string $category ) : static
+    {
+        if ( $this->category ) {
+            \trigger_error( __METHOD__." cannot override existing category: '{$this->category}'" );
+        }
+        else {
+            $this->category = $this->category( $category );
+        }
+
+        return $this;
+    }
+
+    public function close() : void
+    {
+        foreach ( $this->events as $event ) {
+            foreach ( $event as $profilerEvent ) {
+                $profilerEvent->stopAll();
+            }
+        }
+
+        $this->closedAt ??= \microtime( true );
+    }
+
+    /**
+     * Formats and validates the provided event name, associating it with the optional category if specified.
+     *
+     * @param string $string name of the event
+     *
+     * @return non-empty-string
+     */
+    private function name( string $string ) : string
+    {
+        // @phpstan-ignore-next-line | Assertions assert
+        \assert( \strlen( $string ) > 0, 'Event name must not be empty.' );
+        \assert(
+            \ctype_alnum( \str_replace( ['\\', '/', ':', '.', '-', '_'], '', $string ) ),
+            'Event name must not be empty.',
+        );
+
+        return $string;
+    }
+
+    /**
+     * Handles the category string transformation or returns the current category if no string is provided.
+     *
+     * @param null|non-empty-string $string
+     *
+     * @return non-empty-string
+     */
+    private function category( ?string $string ) : string
+    {
+        if ( ! $string ) {
+            return $this->category ?? Profiler::DEFAULT_CATEGORY;
+        }
+
+        $namespaced = \explode( '\\', $string );
+
+        return \end( $namespaced ) ?: Profiler::DEFAULT_CATEGORY;
     }
 }

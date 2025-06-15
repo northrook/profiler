@@ -1,6 +1,9 @@
 {
   "name": "northrook/profiler",
-  "description": "A PHP profiler using Symfony\\Stopwatch.",
+  "description": "Performance monitoring of runtime Events.",
+  "keywords": [
+    "wip"
+  ],
   "type": "library",
   "license": "BSD-3-Clause",
   "autoload": {
@@ -18,8 +21,8 @@
   "prefer-stable": true,
   "require": {
     "php": ">=8.3",
-    "northrook/core": "dev-main",
-    "symfony/stopwatch": "@stable"
+    "ext-ctype": "*",
+    "northrook/core-contracts": "dev-main"
   },
   "require-dev": {
     "northrook/dev": "dev-main"
