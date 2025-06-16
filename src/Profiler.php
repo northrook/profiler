@@ -6,7 +6,7 @@ namespace Core;
 
 use Core\Contracts\Profiler\ProfilerEvent;
 use Core\Contracts\ProfilerInterface;
-use Core\Profiler\Event;
+use Core\Profiler\{Event};
 
 final class Profiler implements ProfilerInterface
 {
@@ -88,8 +88,9 @@ final class Profiler implements ProfilerInterface
     public function start(
         string  $name,
         ?string $category = null,
+        ?string $note = null,
     ) : ?ProfilerEvent {
-        return $this->event( $name, $category )?->start();
+        return $this->event( $name, $category )?->start( $note );
     }
 
     /**
@@ -119,6 +120,16 @@ final class Profiler implements ProfilerInterface
                 $event->stop();
             }
         }
+    }
+
+    public function snapshot(
+        string  $name,
+        ?string $category = null,
+        ?string $note = null,
+    ) : static {
+        $this->event( $name, $category )?->snapshot( $note );
+
+        return $this;
     }
 
     /**
